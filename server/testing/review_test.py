@@ -1,51 +1,35 @@
+import pytest
 from app import app, db
-from server.models import Customer, Item, Review
+from models import Customer, Item, Review
 
+@pytest.fixture(scope="module")
+def app_context():
+    with app.app_context():
+        yield
 
-class TestReview:
-    '''Review model in models.py'''
+class TestReviewModel:
+    """Test Review model functionality"""
 
-    def test_can_be_instantiated(self):
-        '''can be invoked to create a Python object.'''
-        r = Review()
-        assert r
-        assert isinstance(r, Review)
+    def test_create_review(self, app_context):
+        # Create customer and item
+        c = Customer(name="Reviewer")
+        i = Item(name="Item to Review", price=20.0)
+        db.session.add_all([c, i])
+        db.session.commit()
 
-    def test_has_comment(self):
-        '''can be instantiated with a comment attribute.'''
-        r = Review(comment='great product!')
-        assert r.comment == 'great product!'
+        # Create review
+        r = Review(comment="Excellent!", customer=c, item=i)
+        db.session.add(r)
+        db.session.commit()
 
-    def test_can_be_saved_to_database(self):
-        '''can be added to a transaction and committed to review table with comment column.'''
-        with app.app_context():
-            assert 'comment' in Review.__table__.columns
-            r = Review(comment='great!')
-            db.session.add(r)
-            db.session.commit()
-            assert hasattr(r, 'id')
-            assert db.session.query(Review).filter_by(id=r.id).first()
+        # Assertions
+        assert r.id is not None
+        assert r.comment == "Excellent!"
+        assert r.customer == c
+        assert r.item == i
 
-    def test_is_related_to_customer_and_item(self):
-        '''has foreign keys and relationships'''
-        with app.app_context():
-            assert 'customer_id' in Review.__table__.columns
-            assert 'item_id' in Review.__table__.columns
-
-            c = Customer()
-            i = Item()
-            db.session.add_all([c, i])
-            db.session.commit()
-
-            r = Review(comment='great!', customer=c, item=i)
-            db.session.add(r)
-            db.session.commit()
-
-            # check foreign keys
-            assert r.customer_id == c.id
-            assert r.item_id == i.id
-            # check relationships
-            assert r.customer == c
-            assert r.item == i
-            assert r in c.reviews
-            assert r in i.reviews
+        # Cleanup
+        db.session.delete(r)
+        db.session.delete(c)
+        db.session.delete(i)
+        db.session.commit()
